@@ -10,12 +10,14 @@ jobs:
 
       - name: Register i386 Architecture
         run: |
+          set -e
           sudo dpkg --add-architecture i386
           sudo apt-get update -y
           echo "i386 registered: $(dpkg --print-foreign-architectures)"
 
       - name: Install 64-bit Build Tools
         run: |
+          set -e
           sudo apt-get install -y \
             git wget autoconf automake libtool \
             bison flex \
@@ -29,6 +31,7 @@ jobs:
 
       - name: Install 64-bit Libraries
         run: |
+          set -e
           sudo apt-get install -y \
             libasound2-dev \
             libpulse-dev \
@@ -51,6 +54,7 @@ jobs:
 
       - name: Install 32-bit (i386) Libraries
         run: |
+          set -e
           sudo apt-get install -y \
             libasound2-dev:i386 \
             libpulse-dev:i386 \
@@ -71,6 +75,7 @@ jobs:
 
       - name: Set i386 pkg-config Paths
         run: |
+          set -e
           echo "PKG_CONFIG_PATH_32=/usr/lib/i386-linux-gnu/pkgconfig:/usr/share/pkgconfig" >> $GITHUB_ENV
           echo "PKG_CONFIG_LIBDIR_32=/usr/lib/i386-linux-gnu/pkgconfig" >> $GITHUB_ENV
           echo "=== 32-bit library verification ==="
@@ -80,41 +85,50 @@ jobs:
 
       - name: Clone Wine-TKG
         run: |
+          set -e
           git clone --recurse-submodules \
             https://github.com/Frogging-Family/wine-tkg-git.git
           echo "Wine-TKG cloned."
-          echo "=== root dir verify (config & script) ==="
-          ls wine-tkg-git/customization.cfg wine-tkg-git/nonpacman-build.sh
+          echo "=== inner dir verify ==="
+          ls wine-tkg-git/wine-tkg-git/
+          echo "=== submodule status ==="
+          cd wine-tkg-git/wine-tkg-git && git submodule status
 
       - name: Configure Wine-TKG for Gaming
         run: |
-          cd wine-tkg-git                          # <-- root of cloned repo
+          set -e
+          cd wine-tkg-git/wine-tkg-git
           sed -i 's/_proton_fsr="false"/_proton_fsr="true"/' customization.cfg
           sed -i 's/_use_esync="false"/_use_esync="true"/' customization.cfg
           sed -i 's/_use_fsync="false"/_use_fsync="true"/' customization.cfg
           sed -i 's/_dxvk_dxgi="false"/_dxvk_dxgi="true"/' customization.cfg
           sed -i 's/_proton_mf_hacks="false"/_proton_mf_hacks="true"/' customization.cfg
           echo "=== Active customization.cfg settings ==="
-          grep -E "_proton_fsr|_use_esync|_use_fsync|_dxvk_dxgi" customization.cfg
+          grep -E "_proton_fsr|_use_esync|_use_fsync|_dxvk_dxgi|_proton_mf_hacks" customization.cfg
 
       - name: Compile Wine-TKG
         run: |
-          cd wine-tkg-git                          # <-- root of cloned repo
+          set -e
+          cd wine-tkg-git/wine-tkg-git
           chmod +x ./nonpacman-build.sh
           export PKG_CONFIG_PATH_32="$PKG_CONFIG_PATH_32"
           export PKG_CONFIG_LIBDIR_32="$PKG_CONFIG_LIBDIR_32"
           yes "" | ./nonpacman-build.sh
           echo "=== Build output check ==="
-          find . -name "wine" -o -name "wine64" 2>/dev/null | head -5
+          find . -maxdepth 1 -name "wine" -o -name "wine64" 2>/dev/null | head -5
           find . -name "*.tar.*" 2>/dev/null | head -5
 
       - name: Package Wine-TKG
         run: |
+          set -e
           mkdir -p /tmp/wine-mahefooz
-          cp -r wine-tkg-git/nonpacman-builds/* \
-            /tmp/wine-mahefooz/ 2>/dev/null || true
-          find wine-tkg-git -name "wine-tkg-*" -type d \
-            -exec cp -r {} /tmp/wine-mahefooz/ \; 2>/dev/null || true
+          # Copy from the inner build directory
+          if [ -d wine-tkg-git/wine-tkg-git/nonpacman-builds ]; then
+            cp -r wine-tkg-git/wine-tkg-git/nonpacman-builds/* /tmp/wine-mahefooz/
+          fi
+          # Also grab any wine-tkg-* directories from the inner dir
+          find wine-tkg-git/wine-tkg-git -maxdepth 1 -name "wine-tkg-*" -type d \
+            -exec cp -r {} /tmp/wine-mahefooz/ \;
           echo "=== Wine package contents ==="
           ls -lh /tmp/wine-mahefooz/ || echo "Empty - check build logs above"
           cd /tmp
