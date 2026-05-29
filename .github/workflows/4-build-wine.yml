@@ -110,10 +110,10 @@ jobs:
         run: |
           set -e
           cd wine-tkg-git/wine-tkg-git
-          chmod +x ./nonpacman-build.sh
+          chmod +x ./non-makepkg-build.sh
           export PKG_CONFIG_PATH_32="$PKG_CONFIG_PATH_32"
           export PKG_CONFIG_LIBDIR_32="$PKG_CONFIG_LIBDIR_32"
-          yes "" | ./nonpacman-build.sh
+          yes "" | ./non-makepkg-build.sh
           echo "=== Build output check ==="
           find . -maxdepth 1 -name "wine" -o -name "wine64" 2>/dev/null | head -5
           find . -name "*.tar.*" 2>/dev/null | head -5
@@ -122,9 +122,9 @@ jobs:
         run: |
           set -e
           mkdir -p /tmp/wine-mahefooz
-          # Copy from the inner build directory
-          if [ -d wine-tkg-git/wine-tkg-git/nonpacman-builds ]; then
-            cp -r wine-tkg-git/wine-tkg-git/nonpacman-builds/* /tmp/wine-mahefooz/
+          # Copy from the inner build directory (corrected output folder)
+          if [ -d wine-tkg-git/wine-tkg-git/non-makepkg-builds ]; then
+            cp -r wine-tkg-git/wine-tkg-git/non-makepkg-builds/* /tmp/wine-mahefooz/
           fi
           # Also grab any wine-tkg-* directories from the inner dir
           find wine-tkg-git/wine-tkg-git -maxdepth 1 -name "wine-tkg-*" -type d \
