@@ -78,11 +78,23 @@ jobs:
           ls /usr/lib/i386-linux-gnu/libpulse.so* 2>/dev/null && echo "Pulse i386 OK" || echo "Pulse i386 MISSING"
           ls /usr/lib/i386-linux-gnu/libvulkan.so* 2>/dev/null && echo "Vulkan i386 OK" || echo "Vulkan i386 MISSING"
 
-      - name: Clone Wine-TKG
+      - name: Clone Wine-TKG (with submodule fallback)
         run: |
+          echo "Cloning main repo..."
           git clone --recurse-submodules \
             https://github.com/Frogging-Family/wine-tkg-git.git
-          echo "Wine-TKG cloned."
+          cd wine-tkg-git
+
+          # Ensure submodule is really there
+          if [ ! -f wine-tkg-git/nonpacman-build.sh ]; then
+            echo "Submodule missing! Cloning it manually..."
+            rm -rf wine-tkg-git
+            git clone https://github.com/Frogging-Family/wine-tkg-git.git wine-tkg-git
+          else
+            echo "Submodule already present."
+          fi
+
+          cd ..
           echo "=== inner dir verify ==="
           ls wine-tkg-git/wine-tkg-git/
 
@@ -100,6 +112,7 @@ jobs:
       - name: Compile Wine-TKG
         run: |
           cd wine-tkg-git/wine-tkg-git
+          # Ensure script is executable (fallback clone might not preserve permissions)
           chmod +x ./nonpacman-build.sh
           export PKG_CONFIG_PATH_32="$PKG_CONFIG_PATH_32"
           export PKG_CONFIG_LIBDIR_32="$PKG_CONFIG_LIBDIR_32"
