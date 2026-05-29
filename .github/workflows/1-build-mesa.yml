@@ -1,0 +1,92 @@
+name: "01 | BUILD MESA (Intel HD 530 / Skylake)"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-mesa:
+    runs-on: ubuntu-22.04
+    steps:
+
+      - name: Install APT Dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            python3-pip python3-setuptools python3-wheel \
+            python3-mako python3-pkgconfig \
+            libdrm-dev \
+            libx11-xcb-dev libxext-dev libxdamage-dev \
+            libxcb-glx0-dev libxcb-shm0-dev libxcb-dri2-0-dev \
+            libxcb-dri3-dev libxcb-present-dev libxshmfence-dev \
+            libxxf86vm-dev \
+            libwayland-dev wayland-protocols \
+            libwayland-egl-backend-dev \
+            libegl-dev libegl1-mesa-dev libgles2-mesa-dev \
+            libelf-dev \
+            libvulkan-dev \
+            glslang-tools glslang-dev \
+            cmake pkg-config zlib1g-dev \
+            libexpat1-dev \
+            libxrandr-dev \
+            libxfixes-dev libx11-dev
+
+      - name: Install Latest Meson + Ninja via pip3
+        run: |
+          pip3 install --upgrade meson ninja
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Verify Meson Version (must be 1.3+)
+        run: |
+          meson --version
+          ninja --version
+          which meson
+
+      - name: Clone Mesa 24.0.9
+        run: |
+          git clone --depth 1 -b mesa-24.0.9 https://gitlab.freedesktop.org/mesa/mesa.git
+          echo "Mesa clone done. Size: $(du -sh mesa | cut -f1)"
+
+      - name: Configure Mesa (meson setup)
+        run: |
+          set -o pipefail
+          cd mesa
+          SKYLAKE_FLAGS="-march=skylake -O2 -pipe"
+          meson setup build \
+            -Dplatforms=x11,wayland \
+            -Dgallium-drivers=iris \
+            -Dvulkan-drivers=intel \
+            -Dc_args="${SKYLAKE_FLAGS}" \
+            -Dcpp_args="${SKYLAKE_FLAGS}" \
+            -Dc_link_args="-Wl,-O1" \
+            -Db_lto=false \
+            --buildtype=release \
+            --prefix=/tmp/mesa-mahefooz \
+            2>&1 | tee /tmp/meson-setup.log
+          echo "--- meson setup exit: $? ---"
+          tail -30 /tmp/meson-setup.log
+
+      - name: Compile Mesa (ninja)
+        run: |
+          cd mesa
+          ninja -C build -j2
+          echo "--- ninja compile exit: $? ---"
+
+      - name: Install Mesa to /tmp
+        run: |
+          cd mesa
+          ninja -C build install
+          echo "=== Installed files ==="
+          find /tmp/mesa-mahefooz -name "*.so*" | head -20
+
+      - name: Package Mesa
+        run: |
+          cd /tmp
+          tar -czvf mesa-custom-skylake.tar.gz mesa-mahefooz/
+          du -sh mesa-custom-skylake.tar.gz
+
+      - name: Upload Mesa Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mesa-custom-skylake
+          path: /tmp/mesa-custom-skylake.tar.gz
+          retention-days: 3

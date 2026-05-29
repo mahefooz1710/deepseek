@@ -1,0 +1,123 @@
+name: "06 | UPLOAD TO GOOGLE DRIVE"
+
+on:
+  workflow_dispatch:
+    inputs:
+      include_mesa:
+        description: "Mesa artifact include karo?"
+        type: boolean
+        default: true
+      include_mangohud:
+        description: "MangoHud artifact include karo?"
+        type: boolean
+        default: true
+      include_kernel:
+        description: "Kernel artifact include karo?"
+        type: boolean
+        default: true
+      include_wine:
+        description: "Wine artifact include karo?"
+        type: boolean
+        default: true
+      include_controller:
+        description: "Controller rules include karo?"
+        type: boolean
+        default: true
+
+env:
+  GDRIVE_FOLDER_ID: "1H28ejDbHH8c_sRBq7tL4YxI6oOUmFgBr"
+
+jobs:
+  upload-to-gdrive:
+    runs-on: ubuntu-22.04
+    steps:
+
+      - name: Install Rclone
+        run: |
+          sudo apt-get install -y rclone
+          rclone --version
+
+      - name: Setup Rclone Config
+        env:
+          RCLONE_CONFIG_GDRIVE: ${{ secrets.RCLONE_CONF }}
+        run: |
+          if [ -z "$RCLONE_CONFIG_GDRIVE" ]; then
+            echo "============================================"
+            echo "ERROR: RCLONE_CONF secret missing hai!"
+            echo ""
+            echo "Setup karo:"
+            echo "  GitHub repo > Settings > Secrets and variables"
+            echo "  > Actions > New repository secret"
+            echo "  Name:  RCLONE_CONF"
+            echo "  Value: apni ~/.config/rclone/rclone.conf ka content"
+            echo "============================================"
+            exit 1
+          fi
+          mkdir -p ~/.config/rclone
+          echo "$RCLONE_CONFIG_GDRIVE" > ~/.config/rclone/rclone.conf
+          echo "[✓] Rclone config loaded"
+          rclone listremotes
+
+      - name: Download Mesa Artifact
+        if: ${{ inputs.include_mesa }}
+        uses: actions/download-artifact@v4
+        with:
+          name: mesa-custom-skylake
+          path: /tmp/all-artifacts/
+        continue-on-error: true
+
+      - name: Download MangoHud Artifact
+        if: ${{ inputs.include_mangohud }}
+        uses: actions/download-artifact@v4
+        with:
+          name: mangohud-custom
+          path: /tmp/all-artifacts/
+        continue-on-error: true
+
+      - name: Download Kernel Artifact
+        if: ${{ inputs.include_kernel }}
+        uses: actions/download-artifact@v4
+        with:
+          name: kernel-custom-optiplex
+          path: /tmp/all-artifacts/
+        continue-on-error: true
+
+      - name: Download Wine Artifact
+        if: ${{ inputs.include_wine }}
+        uses: actions/download-artifact@v4
+        with:
+          name: wine-tkg-custom
+          path: /tmp/all-artifacts/
+        continue-on-error: true
+
+      - name: Download Controller Rules
+        if: ${{ inputs.include_controller }}
+        uses: actions/download-artifact@v4
+        with:
+          name: controller-rules
+          path: /tmp/all-artifacts/
+        continue-on-error: true
+
+      - name: Prepare Final Package
+        run: |
+          echo "=== Downloaded artifacts ==="
+          find /tmp/all-artifacts -type f | sort
+          cd /tmp
+          tar -czvf MAHEFOOZ_GODMODE_BINARIES.tar.gz all-artifacts/
+          echo ""
+          echo "=== Final package size ==="
+          du -sh /tmp/MAHEFOOZ_GODMODE_BINARIES.tar.gz
+
+      - name: Upload to Google Drive
+        run: |
+          rclone copy /tmp/MAHEFOOZ_GODMODE_BINARIES.tar.gz \
+            "gdrive:${GDRIVE_FOLDER_ID}" \
+            --progress \
+            --transfers=1 \
+            --retries=3 \
+            --verbose
+          echo ""
+          echo "=== Google Drive contents ==="
+          rclone ls "gdrive:${GDRIVE_FOLDER_ID}"
+          echo ""
+          echo "[✓] Upload complete!"

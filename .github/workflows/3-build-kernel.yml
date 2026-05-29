@@ -1,0 +1,106 @@
+name: "03 | BUILD KERNEL (Xanmod 6.6 / OptiPlex 7050)"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-kernel:
+    runs-on: ubuntu-22.04
+    steps:
+
+      - name: Install Kernel Build Dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            build-essential \
+            libncurses-dev \
+            bison flex \
+            libssl-dev libelf-dev \
+            bc rsync kmod cpio \
+            xz-utils dwarves pahole \
+            debhelper dpkg-dev \
+            gcc make binutils
+
+      - name: Clone Xanmod Kernel 6.6
+        run: |
+          git clone --depth 1 -b 6.6.30-xanmod1 \
+            https://github.com/xanmod/linux.git xanmod-kernel \
+          || \
+          git clone --depth 1 -b 6.6 \
+            https://github.com/xanmod/linux.git xanmod-kernel \
+          || \
+          git clone --depth 1 \
+            https://github.com/xanmod/linux.git xanmod-kernel
+          cd xanmod-kernel
+          echo "Kernel version: $(make kernelversion 2>/dev/null || cat Makefile | head -5)"
+
+      - name: Configure Kernel for i3-6100 + HD 530
+        run: |
+          cd xanmod-kernel
+          make x86_64_defconfig
+
+          scripts/config --enable  CONFIG_DRM_I915
+          scripts/config --disable CONFIG_DRM_AMDGPU
+          scripts/config --disable CONFIG_DRM_RADEON
+          scripts/config --disable CONFIG_DRM_NOUVEAU
+          scripts/config --disable CONFIG_DRM_VMWGFX
+
+          scripts/config --enable CONFIG_E1000E
+          scripts/config --enable CONFIG_IGB
+
+          scripts/config --enable CONFIG_SND_HDA_INTEL
+          scripts/config --enable CONFIG_SND_HDA_CODEC_REALTEK
+          scripts/config --enable CONFIG_SND_HDA_CODEC_HDMI
+
+          scripts/config --enable CONFIG_USB_XHCI_HCD
+          scripts/config --enable CONFIG_HID
+          scripts/config --enable CONFIG_HID_GENERIC
+          scripts/config --enable CONFIG_USB_HID
+          scripts/config --enable CONFIG_INPUT_JOYDEV
+
+          scripts/config --enable CONFIG_CPU_FREQ_GOV_PERFORMANCE
+          scripts/config --enable CONFIG_INTEL_IDLE
+          scripts/config --enable CONFIG_X86_INTEL_PSTATE
+
+          scripts/config --set-val CONFIG_NR_CPUS 4
+          scripts/config --enable  CONFIG_TRANSPARENT_HUGEPAGE
+
+          scripts/config --disable CONFIG_PCCARD
+          scripts/config --disable CONFIG_CARDBUS
+          scripts/config --disable CONFIG_FIREWIRE
+          scripts/config --disable CONFIG_THUNDERBOLT
+          scripts/config --disable CONFIG_INFINIBAND
+          scripts/config --disable CONFIG_BT
+          scripts/config --disable CONFIG_WLAN
+
+          scripts/config --set-str CONFIG_DEFAULT_HOSTNAME "Optiplex7050"
+
+          make olddefconfig
+          echo "=== Final config summary ==="
+          grep -E "CONFIG_DRM_I915|CONFIG_E1000E|CONFIG_SND_HDA" .config
+
+      - name: Compile Kernel (bindeb-pkg)
+        run: |
+          cd xanmod-kernel
+          make -j$(nproc) bindeb-pkg \
+            LOCALVERSION="-mahefooz-optiplex" \
+            KDEB_PKGVERSION="1.0-mahefooz"
+          echo "=== .deb files ==="
+          ls -lh ../*.deb
+
+      - name: Package Kernel
+        run: |
+          mkdir -p /tmp/kernel-mahefooz
+          mv ../*.deb /tmp/kernel-mahefooz/ 2>/dev/null || \
+            find /home/runner/work -name "*.deb" -exec mv {} /tmp/kernel-mahefooz/ \;
+          echo "=== .deb contents ==="
+          ls -lh /tmp/kernel-mahefooz/
+          cd /tmp
+          tar -czvf kernel-custom-optiplex.tar.gz kernel-mahefooz/
+
+      - name: Upload Kernel Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-custom-optiplex
+          path: /tmp/kernel-custom-optiplex.tar.gz
+          retention-days: 3

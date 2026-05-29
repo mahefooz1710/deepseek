@@ -1,0 +1,48 @@
+name: "05 | CONTROLLER RULES (Cosmic Byte Stelleris)"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-controller-rules:
+    runs-on: ubuntu-22.04
+    steps:
+
+      - name: Generate udev Rules + Install Script
+        run: |
+          mkdir -p /tmp/controller-mahefooz
+          RULES=/tmp/controller-mahefooz/99-cosmicbyte-stelleris.rules
+
+          printf '# Cosmic Byte Stelleris Wired Controller\n' > "$RULES"
+          printf '# VID 0x0079\n' >> "$RULES"
+          printf 'SUBSYSTEM=="input", ATTRS{idVendor}=="0079", ATTRS{idProduct}=="0006", GROUP="input", MODE="0664", TAG+="uaccess"\n' >> "$RULES"
+          printf 'SUBSYSTEM=="usb",   ATTRS{idVendor}=="0079", ATTRS{idProduct}=="0006", GROUP="plugdev", MODE="0664", TAG+="uaccess"\n' >> "$RULES"
+          printf 'KERNEL=="hidraw*",  ATTRS{idVendor}=="0079", GROUP="plugdev", MODE="0664", TAG+="uaccess"\n' >> "$RULES"
+          printf '# VID 0x2563\n' >> "$RULES"
+          printf 'SUBSYSTEM=="input", ATTRS{idVendor}=="2563", ATTRS{idProduct}=="0575", GROUP="input", MODE="0664", TAG+="uaccess"\n' >> "$RULES"
+          printf 'SUBSYSTEM=="usb",   ATTRS{idVendor}=="2563", ATTRS{idProduct}=="0575", GROUP="plugdev", MODE="0664", TAG+="uaccess"\n' >> "$RULES"
+          printf 'KERNEL=="hidraw*",  ATTRS{idVendor}=="2563", GROUP="plugdev", MODE="0664", TAG+="uaccess"\n' >> "$RULES"
+
+          SCRIPT=/tmp/controller-mahefooz/install-controller.sh
+          printf '#!/bin/bash\nset -e\n' > "$SCRIPT"
+          printf 'echo "[*] Installing Cosmic Byte Stelleris udev rules..."\n' >> "$SCRIPT"
+          printf 'sudo cp 99-cosmicbyte-stelleris.rules /etc/udev/rules.d/\n' >> "$SCRIPT"
+          printf 'sudo udevadm control --reload-rules\n' >> "$SCRIPT"
+          printf 'sudo udevadm trigger\n' >> "$SCRIPT"
+          printf 'sudo usermod -aG input,plugdev "$USER"\n' >> "$SCRIPT"
+          printf 'echo "[OK] Done! Logout + login karo"\n' >> "$SCRIPT"
+          printf 'echo "[*] Test: lsusb | grep -i 0079"\n' >> "$SCRIPT"
+          printf 'echo "[*] Test: jstest /dev/input/js0"\n' >> "$SCRIPT"
+
+          chmod +x "$SCRIPT"
+          echo "=== Rules preview ==="
+          cat "$RULES"
+          cd /tmp
+          tar -czvf controller-rules.tar.gz controller-mahefooz/
+
+      - name: Upload Controller Rules
+        uses: actions/upload-artifact@v4
+        with:
+          name: controller-rules
+          path: /tmp/controller-rules.tar.gz
+          retention-days: 3

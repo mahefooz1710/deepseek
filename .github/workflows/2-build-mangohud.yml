@@ -1,0 +1,75 @@
+name: "02 | BUILD MANGOHUD (Gaming Overlay)"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-mangohud:
+    runs-on: ubuntu-22.04
+    steps:
+
+      - name: Install APT Dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            meson ninja-build \
+            g++ g++-multilib gcc-multilib \
+            libx11-dev \
+            libvulkan-dev \
+            libwayland-dev wayland-protocols \
+            libdbus-1-dev \
+            python3-mako \
+            libdrm-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
+            libxnvctrl-dev \
+            libgl-dev \
+            cmake pkg-config \
+            glslang-tools glslang-dev
+
+      - name: Clone MangoHud v0.7.2
+        run: |
+          git clone --depth 1 --recurse-submodules -b v0.7.2 \
+            https://github.com/flightlessmango/MangoHud.git
+          echo "MangoHud clone done."
+
+      - name: Configure MangoHud (meson setup)
+        run: |
+          set -o pipefail
+          cd MangoHud
+          SKYLAKE_FLAGS="-march=skylake -O2 -pipe"
+          meson setup build \
+            -Dwith_wayland=enabled \
+            -Dwith_x11=enabled \
+            -Duse_system_spdlog=disabled \
+            -Dbuildtype=release \
+            -Dc_args="${SKYLAKE_FLAGS}" \
+            -Dcpp_args="${SKYLAKE_FLAGS}" \
+            --prefix=/tmp/mangohud-mahefooz \
+            2>&1 | tee /tmp/mangohud-setup.log
+          tail -20 /tmp/mangohud-setup.log
+
+      - name: Compile MangoHud
+        run: |
+          cd MangoHud
+          ninja -C build -j2
+
+      - name: Install MangoHud
+        run: |
+          cd MangoHud
+          ninja -C build install
+          echo "=== Installed ==="
+          find /tmp/mangohud-mahefooz -type f | head -20
+
+      - name: Package MangoHud
+        run: |
+          cd /tmp
+          tar -czvf mangohud-custom.tar.gz mangohud-mahefooz/
+          du -sh mangohud-custom.tar.gz
+
+      - name: Upload MangoHud Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mangohud-custom
+          path: /tmp/mangohud-custom.tar.gz
+          retention-days: 3
