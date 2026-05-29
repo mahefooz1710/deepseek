@@ -78,45 +78,32 @@ jobs:
           ls /usr/lib/i386-linux-gnu/libpulse.so* 2>/dev/null && echo "Pulse i386 OK" || echo "Pulse i386 MISSING"
           ls /usr/lib/i386-linux-gnu/libvulkan.so* 2>/dev/null && echo "Vulkan i386 OK" || echo "Vulkan i386 MISSING"
 
-      - name: Clone Wine-TKG (with submodule fallback)
+      - name: Clone Wine-TKG
         run: |
-          echo "Cloning main repo..."
           git clone --recurse-submodules \
             https://github.com/Frogging-Family/wine-tkg-git.git
-          cd wine-tkg-git
-
-          # Ensure submodule is really there
-          if [ ! -f wine-tkg-git/nonpacman-build.sh ]; then
-            echo "Submodule missing! Cloning it manually..."
-            rm -rf wine-tkg-git
-            git clone https://github.com/Frogging-Family/wine-tkg-git.git wine-tkg-git
-          else
-            echo "Submodule already present."
-          fi
-
-          cd ..
-          echo "=== inner dir verify ==="
-          ls wine-tkg-git/wine-tkg-git/
+          echo "Wine-TKG cloned."
+          echo "=== root dir verify (config & script) ==="
+          ls wine-tkg-git/customization.cfg wine-tkg-git/nonpacman-build.sh
 
       - name: Configure Wine-TKG for Gaming
         run: |
-          cd wine-tkg-git/wine-tkg-git
-          sed -i 's/_proton_fsr="false"/_proton_fsr="true"/' customization.cfg || true
-          sed -i 's/_use_esync="false"/_use_esync="true"/' customization.cfg || true
-          sed -i 's/_use_fsync="false"/_use_fsync="true"/' customization.cfg || true
-          sed -i 's/_dxvk_dxgi="false"/_dxvk_dxgi="true"/' customization.cfg || true
-          sed -i 's/_proton_mf_hacks="false"/_proton_mf_hacks="true"/' customization.cfg || true
+          cd wine-tkg-git                          # <-- root of cloned repo
+          sed -i 's/_proton_fsr="false"/_proton_fsr="true"/' customization.cfg
+          sed -i 's/_use_esync="false"/_use_esync="true"/' customization.cfg
+          sed -i 's/_use_fsync="false"/_use_fsync="true"/' customization.cfg
+          sed -i 's/_dxvk_dxgi="false"/_dxvk_dxgi="true"/' customization.cfg
+          sed -i 's/_proton_mf_hacks="false"/_proton_mf_hacks="true"/' customization.cfg
           echo "=== Active customization.cfg settings ==="
           grep -E "_proton_fsr|_use_esync|_use_fsync|_dxvk_dxgi" customization.cfg
 
       - name: Compile Wine-TKG
         run: |
-          cd wine-tkg-git/wine-tkg-git
-          # Ensure script is executable (fallback clone might not preserve permissions)
+          cd wine-tkg-git                          # <-- root of cloned repo
           chmod +x ./nonpacman-build.sh
           export PKG_CONFIG_PATH_32="$PKG_CONFIG_PATH_32"
           export PKG_CONFIG_LIBDIR_32="$PKG_CONFIG_LIBDIR_32"
-          yes "" | ./nonpacman-build.sh || true
+          yes "" | ./nonpacman-build.sh
           echo "=== Build output check ==="
           find . -name "wine" -o -name "wine64" 2>/dev/null | head -5
           find . -name "*.tar.*" 2>/dev/null | head -5
@@ -124,7 +111,7 @@ jobs:
       - name: Package Wine-TKG
         run: |
           mkdir -p /tmp/wine-mahefooz
-          cp -r wine-tkg-git/wine-tkg-git/nonpacman-builds/* \
+          cp -r wine-tkg-git/nonpacman-builds/* \
             /tmp/wine-mahefooz/ 2>/dev/null || true
           find wine-tkg-git -name "wine-tkg-*" -type d \
             -exec cp -r {} /tmp/wine-mahefooz/ \; 2>/dev/null || true
